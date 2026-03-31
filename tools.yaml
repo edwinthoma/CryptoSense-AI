@@ -1,0 +1,93 @@
+sources:
+  crypto-bq-source:
+    kind: bigquery
+    project: genai-track-02
+
+tools:
+  get_bitcoin_activity:
+    kind: bigquery-sql
+    source: crypto-bq-source
+    statement: |
+      SELECT
+        DATE(block_timestamp) as date,
+        COUNT(*) as transaction_count,
+        ROUND(SUM(output_value) / 1e8, 2) as total_btc_moved,
+        ROUND(AVG(fee), 2) as avg_fee_satoshis,
+        ROUND(AVG(output_value) / 1e8, 4) as avg_transaction_btc
+      FROM `bigquery-public-data.crypto_bitcoin.transactions`
+      WHERE DATE(block_timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      GROUP BY date
+      ORDER BY date DESC
+      LIMIT 30
+    description: |
+      Retrieves the last 30 days of Bitcoin network activity.
+      Returns daily transaction count, total BTC moved, average fee in satoshis,
+      and average transaction size in BTC.
+      Use this to assess Bitcoin network health, activity trends, and market momentum.
+      High transaction count and volume = strong network activity = bullish signal.
+      Rising fees = network congestion = high demand.
+
+  get_ethereum_activity:
+    kind: bigquery-sql
+    source: crypto-bq-source
+    statement: |
+      SELECT
+        DATE(block_timestamp) as date,
+        COUNT(*) as transaction_count,
+        ROUND(SUM(CAST(value AS FLOAT64)) / 1e18, 2) as total_eth_moved,
+        ROUND(AVG(CAST(gas_price AS FLOAT64)) / 1e9, 4) as avg_gas_price_gwei
+      FROM `bigquery-public-data.crypto_ethereum.transactions`
+      WHERE DATE(block_timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      GROUP BY date
+      ORDER BY date DESC
+      LIMIT 30
+    description: |
+      Retrieves the last 30 days of Ethereum network activity.
+      Returns daily transaction count, total ETH moved, and average gas price in Gwei.
+      Use this to assess Ethereum network health and compare against Bitcoin.
+      High gas price = high network demand = bullish signal.
+      Compare with Bitcoin activity to determine which network is more active.
+
+  get_macro_indicators:
+    kind: bigquery-sql
+    source: crypto-bq-source
+    statement: |
+      SELECT
+        country_name,
+        indicator_name,
+        indicator_code,
+        year,
+        ROUND(value, 2) as value
+      FROM `bigquery-public-data.world_bank_wdi.indicators_data`
+      WHERE indicator_code IN (
+        'FP.CPI.TOTL.ZG',
+        'NY.GDP.MKTP.KD.ZG',
+        'FR.INR.RINR',
+        'BX.KLT.DINV.WD.GD.ZS'
+      )
+      AND year >= 2020
+      AND value IS NOT NULL
+      AND country_name IN (
+        'United States', 'China', 'India',
+        'European Union', 'United Kingdom'
+      )
+      ORDER BY country_name, indicator_code, year DESC
+      LIMIT 50
+    description: |
+      Retrieves key macro economic indicators from World Bank for major economies.
+      Indicators returned:
+      - FP.CPI.TOTL.ZG: Inflation rate (Consumer Price Index % change)
+      - NY.GDP.MKTP.KD.ZG: GDP growth rate (% annual)
+      - FR.INR.RINR: Real interest rate (%)
+      - BX.KLT.DINV.WD.GD.ZS: Foreign direct investment (% of GDP)
+      Countries: USA, China, India, EU, UK.
+      Use this to assess global economic health and how macro conditions
+      affect crypto investment decisions.
+      High inflation = possible crypto hedge opportunity.
+      Low GDP growth = risk-off environment = caution on crypto.
+
+toolsets:
+  crypto_financial_toolset:
+    - get_bitcoin_activity
+    - get_ethereum_activity
+    - get_macro_indicators
